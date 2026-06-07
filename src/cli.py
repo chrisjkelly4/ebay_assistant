@@ -51,7 +51,15 @@ def price(item_id: str):
         raise click.ClickException(f"No draft for {item_id}. Run 'draft' first.")
 
     draft = json.loads(draft_path.read_text())
-    query = draft["title"]
+    specifics = draft.get("item_specifics", {})
+    brand = specifics.get("Brand", "")
+    model = specifics.get("Model", "")
+    if brand and model:
+        query = f"{brand} {model}"
+    elif brand:
+        query = f"{brand} {draft['title'].split()[1] if len(draft['title'].split()) > 1 else ''}".strip()
+    else:
+        query = " ".join(draft["title"].split()[:5])
     click.echo(f"Searching comps for: {query}")
 
     suggested = pricing.get_suggested_price(query)

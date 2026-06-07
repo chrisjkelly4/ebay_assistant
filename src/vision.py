@@ -24,7 +24,7 @@ Given photos of an item, return a JSON object with these fields:
 Rules:
 - NEVER invent brand, size, or material. If a label isn't visible, use empty string and add to low_confidence_fields.
 - Title should include brand + item type + key attributes (size, color) if visible.
-- Most used items are USED_GOOD or USED_VERY_GOOD. Be honest about condition.
+- For condition: when in doubt between two adjacent grades, choose the better one. Items on this platform are well-maintained. Only drop to USED_GOOD or below if there are clearly visible flaws.
 - Return only valid JSON, no extra text."""
 
 MAX_SIDE = 1568
