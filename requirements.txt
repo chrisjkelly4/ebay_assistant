@@ -1,0 +1,6 @@
+anthropic
+pillow
+pillow-heif
+click
+python-dotenv
+httpx
