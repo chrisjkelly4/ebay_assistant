@@ -35,6 +35,28 @@ def _get_access_token() -> str:
     return _token_cache["access_token"]
 
 
+def get_access_token() -> str:
+    """Public wrapper — used by images.py and other modules needing the user token."""
+    return _get_access_token()
+
+
+def get_category_id(title: str, category_hint: str) -> str | None:
+    """Use Taxonomy API to resolve a numeric category ID from title + hint text."""
+    resp = httpx.get(
+        f"{EBAY_API_BASE}/commerce/taxonomy/v1/category_tree/3/get_category_suggestions",
+        headers={
+            "Authorization": f"Bearer {_get_application_token()}",
+            "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
+        },
+        params={"q": f"{title} {category_hint}"},
+    )
+    resp.raise_for_status()
+    suggestions = resp.json().get("categorySuggestions", [])
+    if not suggestions:
+        return None
+    return suggestions[0]["category"]["categoryId"]
+
+
 def _headers() -> dict:
     return {
         "Authorization": f"Bearer {_get_access_token()}",

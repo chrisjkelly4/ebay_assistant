@@ -17,6 +17,15 @@ def cli():
 
 
 @cli.command()
+def setup():
+    """Run OAuth consent flow to get an eBay refresh token."""
+    from src.auth import run_oauth_flow
+    refresh_token = run_oauth_flow()
+    click.echo("\nSuccess! Add this to your .env:")
+    click.echo(f"EBAY_REFRESH_TOKEN={refresh_token}")
+
+
+@cli.command()
 @click.argument("item_id")
 def draft(item_id: str):
     """Run vision step for ITEM_ID and save draft JSON."""

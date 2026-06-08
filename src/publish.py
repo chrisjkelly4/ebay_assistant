@@ -4,8 +4,10 @@ import os
 from pathlib import Path
 
 from src import ebay_client, db
+from src.images import upload_photos
 
 DRAFTS_DIR = Path(__file__).parent.parent / "data" / "drafts"
+ITEMS_DIR = Path(__file__).parent.parent / "items"
 
 CONDITION_MAP = {
     "NEW": "NEW",
@@ -24,8 +26,7 @@ def _load_draft(item_id: str) -> dict:
     return json.loads(path.read_text())
 
 
-def _build_inventory_payload(draft: dict) -> dict:
-    """Map draft JSON to eBay createOrReplaceInventoryItem payload."""
+def _build_inventory_payload(draft: dict, image_urls: list[str]) -> dict:
     condition = CONDITION_MAP.get(draft["condition"], "USED_GOOD")
     aspects = {k: [v] for k, v in draft.get("item_specifics", {}).items() if v}
     return {
@@ -37,18 +38,19 @@ def _build_inventory_payload(draft: dict) -> dict:
             "title": draft["title"],
             "description": draft["description"],
             "aspects": aspects,
+            "imageUrls": image_urls,
         },
     }
 
 
-def _build_offer_payload(draft: dict, sku: str, price: float) -> dict:
+def _build_offer_payload(draft: dict, sku: str, price: float, category_id: str) -> dict:
     return {
         "sku": sku,
         "marketplaceId": "EBAY_GB",
         "format": "FIXED_PRICE",
         "listingDescription": draft["description"],
         "pricingSummary": {
-            "price": {"value": str(price), "currency": "GBP"}
+            "price": {"value": str(round(price, 2)), "currency": "GBP"}
         },
         "listingPolicies": {
             "fulfillmentPolicyId": os.environ["EBAY_FULFILLMENT_POLICY_ID"],
@@ -56,28 +58,42 @@ def _build_offer_payload(draft: dict, sku: str, price: float) -> dict:
             "returnPolicyId": os.environ["EBAY_RETURN_POLICY_ID"],
         },
         "merchantLocationKey": os.environ["EBAY_MERCHANT_LOCATION_KEY"],
-        "categoryId": draft.get("category_id", ""),  # set after category lookup
+        "categoryId": category_id,
     }
 
 
 def publish_item(item_id: str, price: float, auto_publish: bool = False) -> dict:
     """
-    Full create → offer → publish flow for one item.
-    auto_publish=False (default): stops after creating the offer and returns a preview.
-    auto_publish=True: publishes immediately.
+    Full pipeline: upload images → resolve category → create inventory item
+    → create offer → publish (if auto_publish=True).
     """
     draft = _load_draft(item_id)
-    sku = item_id  # use item_id as SKU for dedup
+    sku = item_id
 
-    inventory_payload = _build_inventory_payload(draft)
+    print(f"Uploading photos for {item_id}...")
+    access_token = ebay_client.get_access_token()
+    item_dir = ITEMS_DIR / item_id
+    image_urls = upload_photos(item_dir, access_token)
+    print(f"Uploaded {len(image_urls)} photo(s).")
+
+    print("Resolving category...")
+    category_id = ebay_client.get_category_id(draft["title"], draft.get("category_hint", ""))
+    if not category_id:
+        raise RuntimeError(
+            f"Could not resolve category for '{draft['title']}'. "
+            "Set 'category_id' manually in the draft JSON and retry."
+        )
+    print(f"Category ID: {category_id}")
+
+    inventory_payload = _build_inventory_payload(draft, image_urls)
     ebay_client.create_or_replace_inventory_item(sku, inventory_payload)
     db.upsert_item(item_id, "created")
 
-    offer_payload = _build_offer_payload(draft, sku, price)
+    offer_payload = _build_offer_payload(draft, sku, price, category_id)
     offer_id = ebay_client.create_offer(offer_payload)
     db.upsert_item(item_id, "created", offer_id=offer_id)
 
-    result = {"item_id": item_id, "offer_id": offer_id, "price": price}
+    result = {"item_id": item_id, "offer_id": offer_id, "price": price, "category_id": category_id}
 
     if not auto_publish:
         result["status"] = "pending_approval"
