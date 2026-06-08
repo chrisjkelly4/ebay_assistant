@@ -107,15 +107,20 @@ def list_inventory_locations() -> list[dict]:
     return resp.json().get("locations", [])
 
 
-def create_inventory_location(key: str, name: str, country: str = "GB") -> None:
+def create_inventory_location(key: str, name: str, postcode: str, country: str = "GB") -> None:
     """Create a minimal inventory location with the given key."""
     resp = httpx.post(
         f"{EBAY_API_BASE}/sell/inventory/v1/location/{key}",
         headers=_headers(),
         json={
-            "location": {"address": {"country": country}},
+            "location": {
+                "address": {
+                    "country": country,
+                    "postalCode": postcode,
+                }
+            },
             "name": name,
-            "merchantLocationStatus": "ENABLED",
+            "locationTypes": ["WAREHOUSE"],
         },
     )
     if resp.status_code not in (200, 204):

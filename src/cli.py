@@ -40,9 +40,10 @@ def location():
         click.echo("\nAdd the key you want to use as EBAY_MERCHANT_LOCATION_KEY in .env")
         return
 
-    click.echo("No inventory locations found. Creating a default one...")
+    click.echo("No inventory locations found.")
+    postcode = click.prompt("Enter your postcode (needed by eBay)").strip().upper()
     key = "home"
-    ebay_client.create_inventory_location(key, name="Home", country="GB")
+    ebay_client.create_inventory_location(key, name="Home", postcode=postcode)
     click.echo(f"\nCreated. Add this to .env:")
     click.echo(f"  EBAY_MERCHANT_LOCATION_KEY={key}")
 
