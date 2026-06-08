@@ -69,7 +69,7 @@ def create_or_replace_inventory_item(sku: str, payload: dict) -> None:
     """PUT /sell/inventory/v1/inventory_item/{sku}"""
     resp = httpx.put(
         f"{EBAY_API_BASE}/sell/inventory/v1/inventory_item/{sku}",
-        headers=_headers(),
+        headers={**_headers(), "Content-Language": "en-GB"},
         json=payload,
     )
     if resp.status_code not in (200, 204):
