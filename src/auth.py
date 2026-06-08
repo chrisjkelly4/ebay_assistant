@@ -1,13 +1,11 @@
 """OAuth 2.0 authorization code flow for eBay user tokens."""
 import os
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 
 EBAY_AUTHORIZE_URL = "https://auth.ebay.com/oauth2/authorize"
-CALLBACK_PORT = 8080
 
 SCOPES = " ".join([
     "https://api.ebay.com/oauth/api_scope/sell.inventory",
@@ -40,40 +38,28 @@ def _exchange_code(code: str) -> dict:
     return resp.json()
 
 
-class _CallbackHandler(BaseHTTPRequestHandler):
-    code: str | None = None
-
-    def do_GET(self):
-        params = parse_qs(urlparse(self.path).query)
-        if "code" in params:
-            _CallbackHandler.code = params["code"][0]
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"<h2>Authorized! You can close this tab.</h2>")
-        else:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b"No code received.")
-
-    def log_message(self, *args):
-        pass
-
-
 def run_oauth_flow() -> str:
     """
-    Open browser to eBay auth page, capture the callback on localhost,
-    exchange auth code for tokens. Returns the refresh token.
+    Open browser to eBay auth page. After authorizing, eBay redirects to a page
+    whose URL contains ?code=xxx — the user copies that URL and pastes it back.
+    Returns the refresh token.
     """
     auth_url = _build_auth_url()
-    print(f"\nOpening browser for eBay authorization...")
-    print(f"If the browser doesn't open, visit:\n{auth_url}\n")
+    print("\nOpening browser for eBay authorization...")
+    print("If the browser doesn't open, visit this URL manually:\n")
+    print(f"  {auth_url}\n")
     webbrowser.open(auth_url)
 
-    server = HTTPServer(("localhost", CALLBACK_PORT), _CallbackHandler)
-    print(f"Waiting for eBay to redirect to http://localhost:{CALLBACK_PORT} ...")
-    while _CallbackHandler.code is None:
-        server.handle_request()
-    server.server_close()
+    print("After you click 'Agree' in the browser, eBay will redirect you to a page.")
+    print("Copy the full URL from your browser's address bar and paste it here.\n")
+    redirected_url = input("Paste the redirect URL: ").strip()
 
-    tokens = _exchange_code(_CallbackHandler.code)
+    # Extract code from wherever it appears — full URL or bare code
+    if "code=" in redirected_url:
+        params = parse_qs(urlparse(redirected_url).query)
+        code = params["code"][0]
+    else:
+        code = redirected_url  # user pasted just the code
+
+    tokens = _exchange_code(code)
     return tokens["refresh_token"]
