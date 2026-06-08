@@ -2,12 +2,13 @@
 import statistics
 from src import ebay_client
 
-DISCOUNT_FACTOR = 0.95  # undercut median active listings by ~5%
+DISCOUNT_FACTOR = 0.95  # undercut upper quartile by ~5%
 
 
 def get_suggested_price(query: str) -> float | None:
     """
-    Search active fixed-price listings for `query`, take median price, apply discount.
+    Search active fixed-price listings for `query`, take the upper quartile (75th
+    percentile) price, apply discount. Upper quartile targets better-condition items.
     Returns None if no comps found.
     """
     items = ebay_client.search_active_listings(query, limit=20)
@@ -21,5 +22,9 @@ def get_suggested_price(query: str) -> float | None:
     if not prices:
         return None
 
-    median = statistics.median(prices)
-    return round(median * DISCOUNT_FACTOR, 2)
+    if len(prices) < 4:
+        upper_quartile = max(prices)
+    else:
+        upper_quartile = statistics.quantiles(prices, n=4)[2]  # Q3 = 75th percentile
+
+    return round(upper_quartile * DISCOUNT_FACTOR, 2)
