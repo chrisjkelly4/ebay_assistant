@@ -116,12 +116,22 @@ The longest pole is OAuth and policies setup because it depends on the user clic
 
 ## Current status
 
-- Folder structure not yet created
-- Vinted project has working vision pipeline that should be reusable
-- No eBay developer account yet — first step
-- 5 items photographed and ready (carried over from Vinted project, may need re-shoot if eBay items differ)
+Full pipeline built and ready for first live run. All credentials configured.
+
+- All 6 source modules complete: vision, db, pricing, images, publish, auth
+- CLI commands: setup, draft, price, publish, run, all, show, list, policies, location
+- Cloudflare webhook deployed and verified with eBay
+- OAuth refresh token obtained, all .env keys populated
+- Business policies created (payment, return, small postage, large postage)
+- Inventory location created
+- Marketplace Insights API application submitted (pending approval)
+- 4 items in items/ folder, ready to list
 
 ## Decision log
 
-- **Browse API as pricing fallback**: User OK'd starting on Browse API while Marketplace Insights application is pending. Swap when approval comes through.
-- **Approval gate default ON**: First runs are gated. User flips to auto-publish after trusting the output (estimated after 10-20 successful items).
+- **Browse API as pricing fallback**: Active listings only. Using median × 0.82 discount to approximate sold prices. Swap for Marketplace Insights API + 0.95 factor when approval comes through.
+- **Approval gate default ON**: First runs are gated with `--approve` flag. User flips to auto-publish after trusting the output (estimated after 10-20 successful items).
+- **Upper quartile pricing tried and reverted**: Median × 0.82 chosen over upper quartile (75th pct) after prices came out too high for varied items (mugs, Akai). 65th percentile option left commented in pricing.py.
+- **Tiered shipping policies**: Small (clothing/accessories) and large (sewing machine/bulky) — vision auto-assigns based on item bulk.
+- **eBay EPS for image hosting**: Trading API UploadSiteHostedPictures used instead of imgur — images stay on eBay's servers permanently.
+- **items/ folder name**: CLAUDE.md says ebay_items/ but actual folder is items/. Code uses items/.
