@@ -163,6 +163,40 @@ def run(item_id: str, approve: bool):
     ctx.invoke(publish, item_id=item_id, approve=approve)
 
 
+@cli.command(name="all")
+@click.option("--approve", is_flag=True, default=False, help="Publish live (default: dry run).")
+def run_all(approve: bool):
+    """Run full pipeline on every item folder in items/. Use --approve to go live."""
+    from click import get_current_context
+    ctx = get_current_context()
+
+    item_dirs = sorted(p for p in ITEMS_DIR.iterdir() if p.is_dir() and not p.name.startswith("."))
+    if not item_dirs:
+        raise click.ClickException(f"No item folders found in {ITEMS_DIR}")
+
+    click.echo(f"Found {len(item_dirs)} item(s): {', '.join(d.name for d in item_dirs)}\n")
+
+    results = []
+    for item_dir in item_dirs:
+        click.echo(f"{'='*50}")
+        click.echo(f"Processing {item_dir.name}")
+        click.echo(f"{'='*50}")
+        try:
+            ctx.invoke(draft, item_id=item_dir.name)
+            ctx.invoke(price, item_id=item_dir.name)
+            ctx.invoke(publish, item_id=item_dir.name, approve=approve)
+            results.append((item_dir.name, "ok"))
+        except Exception as e:
+            click.echo(f"ERROR on {item_dir.name}: {e}", err=True)
+            results.append((item_dir.name, f"FAILED: {e}"))
+
+    click.echo(f"\n{'='*50}")
+    click.echo("SUMMARY")
+    click.echo(f"{'='*50}")
+    for item_id, status in results:
+        click.echo(f"  {item_id:<12}  {status}")
+
+
 @cli.command()
 @click.argument("item_id")
 def show(item_id: str):
