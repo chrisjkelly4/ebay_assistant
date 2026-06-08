@@ -26,6 +26,24 @@ def setup():
 
 
 @cli.command()
+def policies():
+    """List all business policy IDs from your eBay seller account."""
+    from src import ebay_client
+    data = ebay_client.list_policies()
+
+    id_keys = {
+        "fulfillment": "fulfillmentPolicyId",
+        "payment": "paymentPolicyId",
+        "return": "returnPolicyId",
+    }
+
+    for group, id_key in id_keys.items():
+        click.echo(f"\n{group.upper()}")
+        for p in data.get(group, []):
+            click.echo(f"  {p.get('name', ''):<40}  {p.get(id_key, '')}")
+
+
+@cli.command()
 @click.argument("item_id")
 def draft(item_id: str):
     """Run vision step for ITEM_ID and save draft JSON."""

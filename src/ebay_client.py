@@ -97,6 +97,24 @@ def publish_offer(offer_id: str) -> str:
     return resp.json()["listingId"]
 
 
+def list_policies() -> dict:
+    """Fetch all fulfillment, payment, and return policies for the seller account."""
+    def _fetch(path: str, key: str) -> list:
+        resp = httpx.get(
+            f"{EBAY_API_BASE}/sell/account/v1/{path}",
+            headers=_headers(),
+            params={"marketplace_id": "EBAY_GB"},
+        )
+        resp.raise_for_status()
+        return resp.json().get(key, [])
+
+    return {
+        "fulfillment": _fetch("fulfillment_policy", "fulfillmentPolicies"),
+        "payment": _fetch("payment_policy", "paymentPolicies"),
+        "return": _fetch("return_policy", "returnPolicies"),
+    }
+
+
 def search_active_listings(query: str, limit: int = 20) -> list[dict]:
     """Browse API: search active listings to use as pricing comps."""
     resp = httpx.get(
