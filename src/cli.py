@@ -26,6 +26,28 @@ def setup():
 
 
 @cli.command()
+def location():
+    """List inventory locations (and create one if none exist)."""
+    from src import ebay_client
+
+    locations = ebay_client.list_inventory_locations()
+
+    if locations:
+        click.echo("\nExisting inventory locations:")
+        click.echo(f"  {'KEY':<30}  NAME")
+        for loc in locations:
+            click.echo(f"  {loc['merchantLocationKey']:<30}  {loc.get('name', '')}")
+        click.echo("\nAdd the key you want to use as EBAY_MERCHANT_LOCATION_KEY in .env")
+        return
+
+    click.echo("No inventory locations found. Creating a default one...")
+    key = "home"
+    ebay_client.create_inventory_location(key, name="Home", country="GB")
+    click.echo(f"\nCreated. Add this to .env:")
+    click.echo(f"  EBAY_MERCHANT_LOCATION_KEY={key}")
+
+
+@cli.command()
 def policies():
     """List all business policy IDs from your eBay seller account."""
     from src import ebay_client

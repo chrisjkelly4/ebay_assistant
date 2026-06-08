@@ -97,6 +97,31 @@ def publish_offer(offer_id: str) -> str:
     return resp.json()["listingId"]
 
 
+def list_inventory_locations() -> list[dict]:
+    """Return all inventory locations for the seller account."""
+    resp = httpx.get(
+        f"{EBAY_API_BASE}/sell/inventory/v1/location",
+        headers=_headers(),
+    )
+    resp.raise_for_status()
+    return resp.json().get("locations", [])
+
+
+def create_inventory_location(key: str, name: str, country: str = "GB") -> None:
+    """Create a minimal inventory location with the given key."""
+    resp = httpx.post(
+        f"{EBAY_API_BASE}/sell/inventory/v1/location/{key}",
+        headers=_headers(),
+        json={
+            "location": {"address": {"country": country}},
+            "name": name,
+            "merchantLocationStatus": "ENABLED",
+        },
+    )
+    if resp.status_code not in (200, 204):
+        raise RuntimeError(f"createInventoryLocation failed {resp.status_code}: {resp.text}")
+
+
 def list_policies() -> dict:
     """Fetch all fulfillment, payment, and return policies for the seller account."""
     def _fetch(path: str, key: str) -> list:
