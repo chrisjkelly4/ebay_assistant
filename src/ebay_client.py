@@ -3,8 +3,9 @@ import os
 import time
 import httpx
 
-EBAY_API_BASE = "https://api.ebay.com"
-EBAY_AUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token"
+_SANDBOX = os.environ.get("EBAY_SANDBOX", "").lower() in ("1", "true", "yes")
+EBAY_API_BASE = "https://api.sandbox.ebay.com" if _SANDBOX else "https://api.ebay.com"
+EBAY_AUTH_URL = f"{EBAY_API_BASE}/identity/v1/oauth2/token"
 
 _token_cache: dict = {}  # {"access_token": str, "expires_at": float}
 
