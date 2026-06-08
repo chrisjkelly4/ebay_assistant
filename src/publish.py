@@ -43,6 +43,13 @@ def _build_inventory_payload(draft: dict, image_urls: list[str]) -> dict:
     }
 
 
+def _fulfillment_policy_id(draft: dict) -> str:
+    tier = draft.get("shipping_tier", "small")
+    if tier == "large":
+        return os.environ["EBAY_FULFILLMENT_POLICY_ID_LARGE"]
+    return os.environ["EBAY_FULFILLMENT_POLICY_ID_SMALL"]
+
+
 def _build_offer_payload(draft: dict, sku: str, price: float, category_id: str) -> dict:
     return {
         "sku": sku,
@@ -53,7 +60,7 @@ def _build_offer_payload(draft: dict, sku: str, price: float, category_id: str) 
             "price": {"value": str(round(price, 2)), "currency": "GBP"}
         },
         "listingPolicies": {
-            "fulfillmentPolicyId": os.environ["EBAY_FULFILLMENT_POLICY_ID"],
+            "fulfillmentPolicyId": _fulfillment_policy_id(draft),
             "paymentPolicyId": os.environ["EBAY_PAYMENT_POLICY_ID"],
             "returnPolicyId": os.environ["EBAY_RETURN_POLICY_ID"],
         },

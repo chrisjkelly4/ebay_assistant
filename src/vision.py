@@ -19,6 +19,7 @@ Given photos of an item, return a JSON object with these fields:
 - condition: one of "NEW", "USED_EXCELLENT", "USED_VERY_GOOD", "USED_GOOD", "USED_ACCEPTABLE", "FOR_PARTS_OR_NOT_WORKING"
 - item_specifics: a flat dict of visible attributes. Always include Brand, Color. Add Size, Material, Style, Type, and any other clearly visible attributes. Use "Unbranded" for Brand only if it is definitely unbranded. Use empty string for attributes not visible.
 - suggested_price_gbp: a competitive second-hand price in GBP as a number
+- shipping_tier: "large" for bulky/heavy items (appliances, large electronics, anything needing a courier), "small" for everything else (clothing, accessories, small items fitting Royal Mail)
 - low_confidence_fields: list of field names you are uncertain about
 
 Rules:
