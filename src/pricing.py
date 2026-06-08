@@ -2,7 +2,7 @@
 import statistics
 from src import ebay_client
 
-DISCOUNT_FACTOR = 0.95
+DISCOUNT_FACTOR = 0.82  # active listings run ~15-25% above sold prices; swap for 0.95 once Marketplace Insights approved
 
 
 def get_suggested_price(query: str) -> float | None:
