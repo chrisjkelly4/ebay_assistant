@@ -49,7 +49,10 @@ def _resolve_condition(draft_condition: str, valid_conditions: list[str]) -> str
 def _build_inventory_payload(draft: dict, image_urls: list[str], valid_conditions: list[str] | None = None) -> dict:
     raw = draft.get("condition", "USED_GOOD")
     condition = _resolve_condition(raw, valid_conditions or [])
-    aspects = {k: [v[:65]] for k, v in draft.get("item_specifics", {}).items() if v}
+    aspects = {
+        ("Colour" if k == "Color" else k): [v[:65]]
+        for k, v in draft.get("item_specifics", {}).items() if v
+    }
     return {
         "availability": {
             "shipToLocationAvailability": {"quantity": 1}
