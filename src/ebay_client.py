@@ -61,6 +61,7 @@ def _headers() -> dict:
     return {
         "Authorization": f"Bearer {_get_access_token()}",
         "Content-Type": "application/json",
+        "Content-Language": "en-GB",
         "Accept": "application/json",
     }
 
@@ -69,7 +70,7 @@ def create_or_replace_inventory_item(sku: str, payload: dict) -> None:
     """PUT /sell/inventory/v1/inventory_item/{sku}"""
     resp = httpx.put(
         f"{EBAY_API_BASE}/sell/inventory/v1/inventory_item/{sku}",
-        headers={**_headers(), "Content-Language": "en-GB"},
+        headers=_headers(),
         json=payload,
     )
     if resp.status_code not in (200, 204):
@@ -77,14 +78,46 @@ def create_or_replace_inventory_item(sku: str, payload: dict) -> None:
 
 
 def create_offer(payload: dict) -> str:
-    """POST /sell/inventory/v1/offer. Returns offerId."""
+    """POST /sell/inventory/v1/offer. Returns offerId. If offer already exists, updates it in place."""
     resp = httpx.post(
         f"{EBAY_API_BASE}/sell/inventory/v1/offer",
         headers=_headers(),
         json=payload,
     )
-    resp.raise_for_status()
+    if resp.status_code == 400:
+        body = resp.json()
+        for error in body.get("errors", []):
+            if error.get("errorId") == 25002:  # offer already exists
+                for param in error.get("parameters", []):
+                    if param.get("name") == "offerId":
+                        offer_id = param["value"]
+                        _update_offer(offer_id, payload)
+                        return offer_id
+        raise RuntimeError(f"createOffer failed {resp.status_code}: {resp.text}")
+    if not resp.is_success:
+        raise RuntimeError(f"createOffer failed {resp.status_code}: {resp.text}")
     return resp.json()["offerId"]
+
+
+def _update_offer(offer_id: str, payload: dict) -> None:
+    """PUT /sell/inventory/v1/offer/{offerId} — update an existing offer with fresh payload."""
+    resp = httpx.put(
+        f"{EBAY_API_BASE}/sell/inventory/v1/offer/{offer_id}",
+        headers=_headers(),
+        json=payload,
+    )
+    if not resp.is_success:
+        raise RuntimeError(f"updateOffer failed {resp.status_code}: {resp.text}")
+
+
+def delete_offer(offer_id: str) -> None:
+    """DELETE /sell/inventory/v1/offer/{offerId}"""
+    resp = httpx.delete(
+        f"{EBAY_API_BASE}/sell/inventory/v1/offer/{offer_id}",
+        headers=_headers(),
+    )
+    if resp.status_code not in (200, 204):
+        raise RuntimeError(f"deleteOffer failed {resp.status_code}: {resp.text}")
 
 
 def publish_offer(offer_id: str) -> str:
@@ -93,8 +126,48 @@ def publish_offer(offer_id: str) -> str:
         f"{EBAY_API_BASE}/sell/inventory/v1/offer/{offer_id}/publish",
         headers=_headers(),
     )
-    resp.raise_for_status()
+    if not resp.is_success:
+        raise RuntimeError(f"publishOffer failed {resp.status_code}: {resp.text}")
     return resp.json()["listingId"]
+
+
+_CONDITION_ID_TO_ENUM = {
+    "1000": "NEW",
+    "1500": "NEW_OTHER",
+    "1750": "NEW_WITH_DEFECTS",
+    "2000": "MANUFACTURER_REFURBISHED",
+    "2010": "CERTIFIED_REFURBISHED",
+    "2020": "EXCELLENT_REFURBISHED",
+    "2030": "VERY_GOOD_REFURBISHED",
+    "2040": "GOOD_REFURBISHED",
+    "2500": "SELLER_REFURBISHED",
+    "2750": "LIKE_NEW",
+    "3000": "USED_EXCELLENT",
+    "4000": "USED_VERY_GOOD",
+    "5000": "USED_GOOD",
+    "6000": "USED_ACCEPTABLE",
+    "7000": "FOR_PARTS_OR_NOT_WORKING",
+}
+
+
+def get_valid_conditions(category_id: str) -> list[str]:
+    """Return valid condition enum strings for a category via Sell Metadata API. Returns [] on failure."""
+    resp = httpx.get(
+        f"{EBAY_API_BASE}/sell/metadata/v1/marketplace/EBAY_GB/get_item_condition_policies",
+        headers=_headers(),
+        params={"filter": f"categoryId:{{{category_id}}}"},
+    )
+    if not resp.is_success:
+        return []
+    policies = resp.json().get("itemConditionPolicies", [])
+    if not policies:
+        return []
+    result = []
+    for c in policies[0].get("itemConditions", []):
+        enum = _CONDITION_ID_TO_ENUM.get(str(c["conditionId"]))
+        if enum:
+            result.append(enum)
+    return result
 
 
 def list_inventory_locations() -> list[dict]:

@@ -9,15 +9,6 @@ from src.images import upload_photos
 DRAFTS_DIR = Path(__file__).parent.parent / "data" / "drafts"
 ITEMS_DIR = Path(__file__).parent.parent / "items"
 
-CONDITION_MAP = {
-    "NEW": "NEW",
-    "USED_EXCELLENT": "USED_EXCELLENT",
-    "USED_VERY_GOOD": "USED_VERY_GOOD",
-    "USED_GOOD": "USED_GOOD",
-    "USED_ACCEPTABLE": "USED_ACCEPTABLE",
-    "FOR_PARTS_OR_NOT_WORKING": "FOR_PARTS_OR_NOT_WORKING",
-}
-
 
 def _load_draft(item_id: str) -> dict:
     path = DRAFTS_DIR / f"{item_id}.json"
@@ -26,9 +17,39 @@ def _load_draft(item_id: str) -> dict:
     return json.loads(path.read_text())
 
 
-def _build_inventory_payload(draft: dict, image_urls: list[str]) -> dict:
-    condition = CONDITION_MAP.get(draft["condition"], "USED_GOOD")
-    aspects = {k: [v] for k, v in draft.get("item_specifics", {}).items() if v}
+_CONDITION_HIERARCHY = [
+    "NEW", "LIKE_NEW", "NEW_OTHER", "NEW_WITH_DEFECTS",
+    "MANUFACTURER_REFURBISHED", "CERTIFIED_REFURBISHED",
+    "EXCELLENT_REFURBISHED", "VERY_GOOD_REFURBISHED", "GOOD_REFURBISHED",
+    "SELLER_REFURBISHED",
+    "USED_EXCELLENT", "USED_VERY_GOOD", "USED_GOOD", "USED_ACCEPTABLE",
+    "FOR_PARTS_OR_NOT_WORKING",
+]
+
+
+def _resolve_condition(draft_condition: str, valid_conditions: list[str]) -> str:
+    """Pick the nearest valid condition to the draft condition in the quality hierarchy."""
+    if not valid_conditions:
+        return draft_condition
+    if draft_condition in valid_conditions:
+        return draft_condition
+    try:
+        pos = _CONDITION_HIERARCHY.index(draft_condition)
+    except ValueError:
+        pos = _CONDITION_HIERARCHY.index("USED_GOOD")
+    # Search outward from pos in both directions, alternating down then up
+    for offset in range(1, len(_CONDITION_HIERARCHY)):
+        for idx in (pos + offset, pos - offset):
+            if 0 <= idx < len(_CONDITION_HIERARCHY):
+                if _CONDITION_HIERARCHY[idx] in valid_conditions:
+                    return _CONDITION_HIERARCHY[idx]
+    return valid_conditions[-1]
+
+
+def _build_inventory_payload(draft: dict, image_urls: list[str], valid_conditions: list[str] | None = None) -> dict:
+    raw = draft.get("condition", "USED_GOOD")
+    condition = _resolve_condition(raw, valid_conditions or [])
+    aspects = {k: [v[:65]] for k, v in draft.get("item_specifics", {}).items() if v}
     return {
         "availability": {
             "shipToLocationAvailability": {"quantity": 1}
@@ -92,7 +113,9 @@ def publish_item(item_id: str, price: float, auto_publish: bool = False) -> dict
         )
     print(f"Category ID: {category_id}")
 
-    inventory_payload = _build_inventory_payload(draft, image_urls)
+    valid_conditions = ebay_client.get_valid_conditions(category_id)
+
+    inventory_payload = _build_inventory_payload(draft, image_urls, valid_conditions)
     ebay_client.create_or_replace_inventory_item(sku, inventory_payload)
     db.upsert_item(item_id, "created")
 
@@ -107,6 +130,7 @@ def publish_item(item_id: str, price: float, auto_publish: bool = False) -> dict
         return result
 
     listing_id = ebay_client.publish_offer(offer_id)
+
     db.upsert_item(item_id, "published", listing_id=listing_id)
     result["listing_id"] = listing_id
     result["status"] = "published"
